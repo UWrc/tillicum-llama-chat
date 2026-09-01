@@ -1,0 +1,101 @@
+---
+cluster: "tillicum"
+
+attributes:
+  auto_qos:
+    value: "normal"
+  num_gpus:
+    widget: "number_field"
+    label: "Number of GPUs"
+    required: true
+    min: 0
+    max: 8
+    step: 1
+    value: 1
+    display: true
+    help: |
+      The request always uses 1 GPU by default; changing this field does
+      not change the GPU request.
+  bc_num_hours:
+    value: 4
+    display: true
+  sif_path:
+    label: "Apptainer Image Path"
+    widget: "hidden_field"
+    value: "/gpfs/home/npho/hyakteam/sif/llama.sif"
+    help: |
+      Full path to the llama.cpp Apptainer image (.sif file).
+      Must be readable from the compute nodes.
+      (Hidden — managed by the application administrator.)
+  model_path:
+    label: "Model"
+    widget: "select"
+    value: "/gpfs/models/Qwen3.8-27B.gguf"
+    options:
+      - ["Qwen3.8-27B", "/gpfs/models/Qwen3.8-27B.gguf"]
+      - ["NVIDIA-Nemotron-3.5-Lightning-30B-A3B", "/gpfs/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16.gguf"]
+      - ["gemma-4-31B-it", "/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf"]
+    help: |
+      GGUF model served from /gpfs/models. The full on-disk path is
+      selected automatically for each option.
+  gpu_partition:
+    label: "Partition"
+    widget: "select"
+    value: "gpu-h200"
+    options:
+      - ["gpu-h200", "gpu-h200"]
+      - ["gpu-h200-mig", "gpu-h200-mig"]
+    help: |
+      Slurm partition to request the GPU allocation from.
+      (Named gpu_partition because OOD reserves the attribute name 'partition'.)
+  temperature:
+    label: "Temperature"
+    widget: "number_field"
+    min: 0
+    max: 1
+    step: 0.01
+    value: 0.8
+    header: |
+      ## Advanced (Optional)
+    help: |
+      Sampling temperature for the model (0.00 to 1.00).
+      Lower is more deterministic, higher is more creative.
+  api_key:
+    label: "API Key (optional)"
+    widget: "text_field"
+    value: ""
+    help: |
+      If set, the server requires this key (Authorization: Bearer ...)
+      for API calls. The Web UI lets you enter it under Settings.
+      Leave empty for no authentication.
+  extra_args:
+    label: "Extra llama-server arguments"
+    widget: "text_field"
+    value: "-ngl 99"
+    help: |
+      Additional arguments passed to the llama server, e.g.
+      "-ngl 99 --jinja".
+  enable_slurm_args:
+    label: Modify Slurm command-line options?
+    widget: "check_box"
+    html_options:
+      data:
+        hide-extra-slurm-args-when-unchecked: true
+  extra_slurm_args:
+    label: Slurm command-line options
+    widget: "text_field"
+    help: Additional arguments for the Slurm command, e.g. "sbatch --custom-options"
+
+form:
+  - auto_accounts
+  - auto_qos
+  - num_gpus
+  - gpu_partition
+  - bc_num_hours
+  - sif_path
+  - model_path
+  - temperature
+  - api_key
+  - extra_args
+  - enable_slurm_args
+  - extra_slurm_args

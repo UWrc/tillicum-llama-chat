@@ -1,0 +1,22 @@
+---
+script:
+  cluster: <%= cluster %>
+  accounting_id: <%= auto_accounts %>
+  qos: <%= auto_qos %>
+  native:
+    - "--gpus"
+    - "1"
+    - "--cpus-per-task=<%= gpu_partition == 'gpu-h200-mig' ? 2 : 8 %>"
+    - "--mem=<%= gpu_partition == 'gpu-h200-mig' ? 36 : 240 %>G"
+    - "--partition=<%= gpu_partition %>"
+    - "--time=<%= (bc_num_hours.to_f * 60).round.to_s %>:00"
+    <%-
+      unless extra_slurm_args.empty? or enable_slurm_args == "0"
+        args = extra_slurm_args.split
+        args.each do |arg|
+    -%>
+    - "<%= arg %>"
+    <%-
+        end
+      end
+    -%>

@@ -1,0 +1,49 @@
+# Export the module function if it exists
+[[ $(type -t module) == "function" ]] && export -f module
+
+# Find available port to run the proxy on (this is the port OOD routes to)
+port=$(find_port)
+export port
+
+# Find a separate random open port for the internal llama server.
+# (The proxy and the server cannot share a port.)
+llama_port=$(find_port)
+while [ "$llama_port" == "$port" ]; do
+    llama_port=$(find_port)
+done
+export llama_port
+
+<%-
+  require 'securerandom'
+  csrftoken = SecureRandom.uuid
+-%>
+export csrftoken="<%= csrftoken %>"
+
+# ── Validate form inputs ─────────────────────────────────────────
+LLAMA_SIF="<%= context.sif_path %>"
+LLAMA_SIF="${LLAMA_SIF/#\~/$HOME}"
+if [ ! -r "$LLAMA_SIF" ]; then
+    echo "ERROR: Apptainer image not found or not readable: $LLAMA_SIF"
+    echo "Please check the path in the application form."
+    exit 1
+fi
+
+MODEL_PATH="<%= context.model_path %>"
+MODEL_PATH="${MODEL_PATH/#\~/$HOME}"
+if [ ! -r "$MODEL_PATH" ]; then
+    echo "ERROR: GGUF model not found or not readable: $MODEL_PATH"
+    echo "Please check the path in the application form."
+    exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "ERROR: python3 not found on this node (needed for the reverse proxy)."
+    exit 1
+fi
+
+# The proxy script must be reachable from the compute node (shared FS).
+PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
+if [ ! -r "$PROXY_PY" ]; then
+    echo "ERROR: Reverse proxy script not found: $PROXY_PY"
+    exit 1
+fi

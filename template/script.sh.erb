@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# ============================================================
+# llama.cpp Web UI - OpenOnDemand job script
+#
+# Architecture:
+#
+#   Browser -> OOD -> :$port (python proxy) -> 127.0.0.1:$LLAMA_PORT
+#                                                   (llama-server in apptainer)
+#
+# Both $port (the OOD routing port) and $LLAMA_PORT (the internal
+# inference port) are picked at random by find_port in before.sh.
+#
+# The llama server runs inside the llama.cpp Apptainer container on a
+# GPU. The proxy starts immediately and shows a "model loading" page
+# until the server is up, so the session can connect right away.
+# ============================================================
+
+set -u
+
+<% require 'base64' -%>
+LLAMA_SIF="<%= context.sif_path %>"
+LLAMA_SIF="${LLAMA_SIF/#\~/$HOME}"
+MODEL_PATH="<%= context.model_path %>"
+MODEL_PATH="${MODEL_PATH/#\~/$HOME}"
+TEMPERATURE="<%= context.temperature %>"
+# API key is base64-encoded in the ERB template so that shell
+# special characters ($, backticks, quotes, ...) in the key can
+# never corrupt it in the rendered script.
+API_KEY_B64="<%= Base64.strict_encode64(context.api_key.to_s) %>"
+API_KEY="$(printf '%s' "$API_KEY_B64" | base64 -d 2>/dev/null)"
+EXTRA_ARGS="<%= context.extra_args %>"
+PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
+
+JOB_ID="${SLURM_JOB_ID:-$$}"
+LOGDIR="${TMPDIR:-/tmp}/llama-webui-$JOB_ID"
+mkdir -p "$LOGDIR"
+
+# ── Internal inference port (random, chosen by find_port in
+#    before.sh; fall back to a scan if it was lost or taken) ──────
+port_in_use() {
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+LLAMA_PORT="${llama_port:-}"
+if [ -z "$LLAMA_PORT" ] || port_in_use "$LLAMA_PORT"; then
+    LLAMA_PORT=$(find_port 2>/dev/null || true)
+fi
+if [ -z "$LLAMA_PORT" ] || port_in_use "$LLAMA_PORT"; then
+    for p in $(seq 15000 15099); do
+        if ! port_in_use "$p"; then
+            LLAMA_PORT="$p"
+            break
+        fi
+    done
+fi
+exec 3>&- 2>/dev/null || true
+
+# ── CPU threads from the Slurm allocation ───────────────────────
+THREADS="${SLURM_CPUS_PER_TASK:-$(nproc)}"
+
+# ── Build the llama server command line ─────────────────────────
+# Agent tools are always enabled.
+TOOLS_ARGS=(--tools all)
+
+# Multimodal projector for vision-capable models (gemma).
+MMPROJ_ARGS=()
+case "$MODEL_PATH" in
+    /gpfs/models/gemma-4-31B-it-GGUF/*)
+        MMPROJ_ARGS=(--mmproj /gpfs/models/gemma-4-31B-it-GGUF/mmproj-BF16.gguf)
+        ;;
+esac
+
+API_ARGS=()
+[ -n "$API_KEY" ] && API_ARGS=(--api-key "$API_KEY")
+
+EXTRA_ARGS_ARR=()
+read -r -a EXTRA_ARGS_ARR <<< "$EXTRA_ARGS"
+
+# Apptainer bind mounts: the model directory, plus the mmproj
+# directory if one is in use (it lives outside the model dir).
+BIND_ARGS=(--bind "$(dirname "$MODEL_PATH")")
+if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
+    BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+fi
+
+echo "========================================================"
+echo "  llama.cpp Web UI"
+echo "========================================================"
+echo "  SIF:          $LLAMA_SIF"
+echo "  Model:        $MODEL_PATH"
+echo "  Inference:    127.0.0.1:$LLAMA_PORT"
+echo "  OOD port:     $port"
+echo "  OOD path:     /rnode/$(hostname)/$port/"
+echo "  Slurm alloc:  partition=${SLURM_JOB_PARTITION:-?} qos=${SLURM_QOS:-?} nodes=${SLURM_JOB_NUM_NODES:-?} cpus-per-task=${SLURM_CPUS_PER_TASK:-?} total-cpus=${SLURM_NPROCS:-?} mem-per-node=${SLURM_MEM_PER_NODE:-?}K"
+echo "  Threads:      $THREADS"
+echo "  Temperature:  $TEMPERATURE"
+echo "  API key:      $([ -n "$API_KEY" ] && echo "configured (${#API_KEY} chars)" || echo none)"
+echo "  Tools:        enabled"
+echo "  Extra args:   $EXTRA_ARGS"
+echo "========================================================"
+
+# ── Launch the llama server in the background ───────────────────
+echo "Starting llama server in apptainer container..."
+nohup apptainer run --nv \
+    "${BIND_ARGS[@]}" \
+    "$LLAMA_SIF" \
+    serve \
+    -m "$MODEL_PATH" \
+    --host 127.0.0.1 \
+    --port "$LLAMA_PORT" \
+    --threads "$THREADS" \
+    --ctx-size 0 \
+    --temp "$TEMPERATURE" \
+    ${TOOLS_ARGS[@]+"${TOOLS_ARGS[@]}"} \
+    ${MMPROJ_ARGS[@]+"${MMPROJ_ARGS[@]}"} \
+    ${API_ARGS[@]+"${API_ARGS[@]}"} \
+    ${EXTRA_ARGS_ARR[@]+"${EXTRA_ARGS_ARR[@]}"} \
+    > "$LOGDIR/llama-server.log" 2>&1 &
+LLAMA_PID=$!
+echo "llama server pid: $LLAMA_PID (log: $LOGDIR/llama-server.log)"
+
+# ── Start the reverse proxy (immediately; shows a loading page
+#    until the server is up, so the browser can connect now) ────
+echo "Starting proxy on port $port..."
+PORT="$port" \
+PATCH_BASE="/rnode/$(hostname)/$port" \
+UPSTREAM_HOST="127.0.0.1" \
+UPSTREAM_PORT="$LLAMA_PORT" \
+PROXY_DEBUG="${PROXY_DEBUG:-0}" \
+python3 "$PROXY_PY" > "$LOGDIR/proxy.log" 2>&1 &
+PROXY_PID=$!
+
+# ── Watchdog: if the server dies, show why and stop the job ────
+(
+    while kill -0 "$LLAMA_PID" 2>/dev/null; do
+        sleep 5
+    done
+    echo "ERROR: llama server (pid $LLAMA_PID) exited. Last 30 log lines:"
+    tail -n 30 "$LOGDIR/llama-server.log" 2>/dev/null
+    kill "$PROXY_PID" 2>/dev/null
+) &
+WATCHDOG_PID=$!
+
+# Wait for the proxy; when it goes away the job ends.
+# Ensure a SIGTERM (session teardown) tears the server down with us.
+on_term() { kill "$PROXY_PID" "$WATCHDOG_PID" "$LLAMA_PID" 2>/dev/null; exit 143; }
+trap on_term TERM
+
+wait "$PROXY_PID"
+RC=$?
+
+# ── Cleanup ─────────────────────────────────────────────────────
+kill "$WATCHDOG_PID" 2>/dev/null
+kill "$LLAMA_PID" 2>/dev/null
+pkill -TERM -P "$LLAMA_PID" 2>/dev/null
+sleep 2
+pkill -KILL -P "$LLAMA_PID" 2>/dev/null 2>&1 || true
+echo "Job finished (proxy exit code $RC). Logs: $LOGDIR/"
+exit "$RC"

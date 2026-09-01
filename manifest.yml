@@ -1,0 +1,11 @@
+---
+name: Llama.cpp WebUI
+category: Interactive Apps
+subcategory: LLM Tools
+role: batch_connect
+description: |
+  Chat with local, open weight GGUF models in the browser using the built-in
+  [llama.cpp WebUI](https://github.com/ggml-org/llama.cpp/tree/master/tools/ui).
+  Runs an OpenAI-compatible llama.cpp server (`llama-server`) inside the
+  llama.cpp Apptainer container on a GPU node and exposes its WebUI
+  through OpenOnDemand.
