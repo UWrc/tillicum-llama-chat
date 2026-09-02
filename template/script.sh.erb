@@ -22,13 +22,13 @@ LLAMA_SIF="<%= context.sif_path %>"
 LLAMA_SIF="${LLAMA_SIF/#\~/$HOME}"
 MODEL_PATH="<%= context.model_path %>"
 MODEL_PATH="${MODEL_PATH/#\~/$HOME}"
-TEMPERATURE="<%= context.temperature %>"
+TEMPERATURE="<%= context.enable_advanced_args == "0" ? "0.8" : context.temperature %>"
 # API key is base64-encoded in the ERB template so that shell
 # special characters ($, backticks, quotes, ...) in the key can
 # never corrupt it in the rendered script.
 API_KEY_B64="<%= Base64.strict_encode64(context.api_key.to_s) %>"
 API_KEY="$(printf '%s' "$API_KEY_B64" | base64 -d 2>/dev/null)"
-EXTRA_ARGS="<%= context.extra_args %>"
+EXTRA_ARGS="<%= context.enable_advanced_args == "0" ? "" : context.extra_llama_args %>"
 PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
 
 JOB_ID="${SLURM_JOB_ID:-$$}"

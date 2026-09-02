@@ -19,10 +19,55 @@
   };
   var GPUS = 1; // the job always requests exactly 1 GPU
   var NOTE_ID = 'llama-cost-note';
+  // Add an attribute name here to put its form row behind the same checkbox.
+  var ADVANCED_FIELDS = [
+    'temperature',
+    'extra_llama_args',
+    'extra_slurm_args'
+  ];
 
   function findField(name) {
     return document.getElementById(name) ||
-           document.querySelector('[name="' + name + '"]');
+           document.querySelector('[name="' + name + '"]') ||
+           document.querySelector('[id$="_' + name + '"]') ||
+           document.querySelector('[name$="[' + name + ']"]');
+  }
+
+  function fieldWrapper(field) {
+    return (field.closest && field.closest('.form-group')) ||
+           field.parentElement ||
+           field.parentNode;
+  }
+
+  function updateAdvancedVisibility() {
+    var checkbox = findField('enable_advanced_args');
+    if (!checkbox) { return false; }
+
+    var foundAll = true;
+    ADVANCED_FIELDS.forEach(function (name) {
+      var field = findField(name);
+      if (!field) {
+        foundAll = false;
+        return;
+      }
+
+      var wrapper = fieldWrapper(field);
+      if (wrapper) {
+        wrapper.style.display = checkbox.checked ? '' : 'none';
+      }
+    });
+
+    return foundAll;
+  }
+
+  function bindAdvanced() {
+    var checkbox = findField('enable_advanced_args');
+    if (!checkbox || checkbox.getAttribute('data-llama-advanced-bound') === 'true') {
+      return;
+    }
+
+    checkbox.setAttribute('data-llama-advanced-bound', 'true');
+    checkbox.addEventListener('change', updateAdvancedVisibility);
   }
 
   function noteBox() {
@@ -35,9 +80,7 @@
     box.id = NOTE_ID;
     box.className = 'alert alert-info mt-2';
     // place directly under the hours field (inside its wrapper)
-    var wrapper = (field.closest && field.closest('.form-group')) ||
-                  field.parentElement ||
-                  field.parentNode;
+    var wrapper = fieldWrapper(field);
     if (wrapper) { wrapper.appendChild(box); }
     return box;
   }
@@ -66,11 +109,13 @@
   function bind() {
     var field = findField('bc_num_hours');
     var sel = findField('gpu_partition');
-    if (field) {
+    if (field && field.getAttribute('data-llama-cost-bound') !== 'true') {
+      field.setAttribute('data-llama-cost-bound', 'true');
       field.addEventListener('input', update);
       field.addEventListener('change', update);
     }
-    if (sel) {
+    if (sel && sel.getAttribute('data-llama-cost-bound') !== 'true') {
+      sel.setAttribute('data-llama-cost-bound', 'true');
       sel.addEventListener('change', update);
     }
   }
@@ -80,10 +125,13 @@
   var attempts = 0;
   var timer = setInterval(function () {
     attempts += 1;
-    var ok = update();
-    if (ok) {
+    var costReady = update();
+    var advancedReady = updateAdvancedVisibility();
+    bind();
+    bindAdvanced();
+
+    if (costReady && advancedReady) {
       clearInterval(timer);
-      bind();
     } else if (attempts > 40) { // ~10s give up
       clearInterval(timer);
     }

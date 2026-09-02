@@ -68,14 +68,29 @@ in `llama.sif` (extracted from the binary and unit-tested).
 | Apptainer Image Path | `/gpfs/home/npho/hyakteam/sif/llama.sif` | **hidden field** (admin-managed, not shown to users); must be readable from compute nodes |
 | Model | Qwen3.8-27B | dropdown of GGUF models under `/gpfs/models/`; the full on-disk path is selected automatically. Selecting **gemma-4-31B-it** also passes `--mmproj /gpfs/models/gemma-4-31B-it-GGUF/mmproj-BF16.gguf` and bind-mounts its directory |
 
-**Advanced (Optional) section** (collapsed under a form header):
+**Advanced (Optional) section** (shown by the **Explore advanced options?** checkbox):
 
 | Field | Default | Notes |
 |---|---|---|
 | Temperature | 0.80 | `--temp`, 0.00–1.00 in 0.01 steps |
-| API Key | empty | if set, server requires `Authorization: Bearer <key>`; enter in the UI under Settings |
-| Extra llama-server arguments | `-ngl 99` | e.g. `-ngl 99 --jinja` |
-| Slurm args | — | optional extra `sbatch` options |
+| API Key | empty | hidden/admin-managed; if set, server requires `Authorization: Bearer <key>` |
+| Extra llama-server arguments | empty | e.g. `-ngl 99 --jinja`; ignored unless advanced options are enabled |
+| Slurm args | — | optional extra `sbatch` options; ignored unless advanced options are enabled |
+
+To put another form field behind the same checkbox:
+
+1. Define the attribute and add it to the `form` list as usual.
+2. Add its attribute name to `ADVANCED_FIELDS` near the top of `form.js`.
+3. For OOD's native dynamic-form support too, add
+   `hide-FIELD-NAME-when-un-checked: true` under
+   `enable_advanced_args.html_options.data`. Replace underscores in the
+   attribute name with hyphens (for example, `context_size` becomes
+   `hide-context-size-when-un-checked`).
+
+The application-level JavaScript handles the toggle even when the site's
+`bc_dynamic_js` setting is disabled. Each target needs its own entry. Hiding a
+field does not clear its value, so gate or reset values in the submission
+templates when that matters.
 
 Always-on server flags (not form options):
 
