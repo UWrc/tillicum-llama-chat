@@ -84,7 +84,7 @@ attributes:
     widget: "text_field"
     value: "--jinja --webui-mcp-proxy"
     help: |
-      Additional arguments passed to the llama server. You need the --jinja flag if you want to enable tool calling. Recommended to add flags, if necessary, instead of removing.
+      <a href="https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md">Additional arguments</a> passed to the llama.cpp server. You need the --jinja flag if you want to enable tool calling. Recommended to add flags, if necessary, instead of removing.
   enable_advanced_args:
     label: Explore advanced options?
     widget: "check_box"
