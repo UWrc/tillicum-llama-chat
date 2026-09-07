@@ -7,7 +7,7 @@ script:
     - "--gpus"
     - "1"
     - "--cpus-per-task=<%= gpu_partition == 'gpu-h200-mig' ? 2 : 8 %>"
-    - "--mem=<%= gpu_partition == 'gpu-h200-mig' ? 36 : 240 %>G"
+    - "--mem=<%= gpu_partition == 'gpu-h200-mig' ? 34 : 240 %>G"
     - "--partition=<%= gpu_partition %>"
     - "--time=<%= (bc_num_hours.to_f * 60).round.to_s %>:00"
     <%-

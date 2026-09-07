@@ -19,6 +19,7 @@
   };
   var GPUS = 1; // the job always requests exactly 1 GPU
   var NOTE_ID = 'llama-cost-note';
+  var MODEL_NOTE_ID = 'llama-model-availability-note';
   // Add an attribute name here to put its form row behind the same checkbox.
   var ADVANCED_FIELDS = [
     'temperature',
@@ -68,6 +69,77 @@
 
     checkbox.setAttribute('data-llama-advanced-bound', 'true');
     checkbox.addEventListener('change', updateAdvancedVisibility);
+  }
+
+  function modelNoteBox(modelField) {
+    var box = document.getElementById(MODEL_NOTE_ID);
+    if (box) { return box; }
+
+    box = document.createElement('div');
+    box.id = MODEL_NOTE_ID;
+    box.className = 'alert alert-warning mt-2';
+    box.style.display = 'none';
+    var wrapper = fieldWrapper(modelField);
+    if (wrapper) { wrapper.appendChild(box); }
+    return box;
+  }
+
+  function updateModelOptions() {
+    var partition = findField('gpu_partition');
+    var model = findField('model_path');
+    if (!partition || !model || !model.options) { return false; }
+
+    var firstAvailable = null;
+    var selectedIsAvailable = false;
+    for (var i = 0; i < model.options.length; i += 1) {
+      var option = model.options[i];
+      var optionPartition = option.getAttribute('data-partition');
+      var matches = !optionPartition || optionPartition === partition.value;
+      var placeholder = option.getAttribute('data-model-placeholder') === 'true';
+
+      option.hidden = !matches;
+      option.style.display = matches ? '' : 'none';
+      option.disabled = !matches || placeholder;
+
+      if (matches && !placeholder) {
+        if (!firstAvailable) { firstAvailable = option; }
+        if (option.selected) { selectedIsAvailable = true; }
+      }
+    }
+
+    if (!selectedIsAvailable) {
+      if (firstAvailable) {
+        firstAvailable.selected = true;
+        model.value = firstAvailable.value;
+      } else {
+        model.selectedIndex = -1;
+      }
+    }
+
+    var note = modelNoteBox(model);
+    if (firstAvailable) {
+      model.setCustomValidity('');
+      if (note) { note.style.display = 'none'; }
+    } else {
+      model.setCustomValidity('No configured model is available for this partition.');
+      if (note) {
+        note.textContent = 'No models are configured for ' + partition.value +
+          ' yet. Choose another partition or contact the application administrator.';
+        note.style.display = '';
+      }
+    }
+
+    return true;
+  }
+
+  function bindModelOptions() {
+    var partition = findField('gpu_partition');
+    if (!partition || partition.getAttribute('data-llama-model-bound') === 'true') {
+      return;
+    }
+
+    partition.setAttribute('data-llama-model-bound', 'true');
+    partition.addEventListener('change', updateModelOptions);
   }
 
   function noteBox() {
@@ -127,10 +199,12 @@
     attempts += 1;
     var costReady = update();
     var advancedReady = updateAdvancedVisibility();
+    var modelsReady = updateModelOptions();
     bind();
     bindAdvanced();
+    bindModelOptions();
 
-    if (costReady && advancedReady) {
+    if (costReady && advancedReady && modelsReady) {
       clearInterval(timer);
     } else if (attempts > 40) { // ~10s give up
       clearInterval(timer);

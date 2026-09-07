@@ -30,14 +30,27 @@ attributes:
   model_path:
     label: "Model"
     widget: "select"
-    value: "/gpfs/models/Qwen3.8-27B.gguf"
+    required: true
+    value: ""
     options:
-      - ["Alibaba Qwen3.8 (27B-bf16)", "/gpfs/models/Qwen3.8-27B.gguf"]
-      - ["NVIDIA Nemotron-3.5-Lightning (30B-A3B-bf16)", "/gpfs/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16.gguf"]
-      - ["Google gemma-4 (31B-it-bf16)", "/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf"]
+      # Full-H200 models. The data-option directive provides native OOD
+      # filtering; data-partition is used by form.js as a fallback when the
+      # site's bc_dynamic_js feature is disabled.
+      - ["Alibaba Qwen3.8 (27B-bf16)", "/gpfs/models/Qwen3.8-27B.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
+      - ["NVIDIA Nemotron-3.5-Lightning (30B-A3B-bf16)", "/gpfs/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
+      - ["Google gemma-4 (31B-it-bf16)", "/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
+      - ["Meta Muse Glimmer (30B-fp4)", "/gpfs/models/Muse-Glimmer-30B-GGUF/Muse-Glimmer-30B-KQuant-Dynamic-Q4_K_XL.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
+
+      # Replace these disabled placeholders with real MIG-compatible models.
+      # Remove `disabled: true` and data-model-placeholder after replacing the
+      # label and path; retain the partition/data-option attributes.
+      - ["Alibaba Qwen3.5 (2B-bf16)", "/gpfs/models/Qwen3.5-2B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
+      - ["Alibaba Qwen3.5 (4B-bf16)", "/gpfs/models/Qwen3.5-4B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
+      - ["Alibaba Qwen3.5 (9B-bf16)", "/gpfs/models/Qwen3.5-9B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
+      - ["Google gemma-4 (31B-it-UD-IQ3_XXS)", "/gpfs/models/gemma-4-31B-it-GGUF/gemma-4-31B-it-UD-IQ3_XXS.gguf", {disabled: true, data-model-placeholder: true, data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
     help: |
-      GGUF model served from /gpfs/models. The full on-disk path is
-      selected automatically for each option.
+      Models are filtered by partition because the available GPU memory differs.
+      The full on-disk GGUF path is selected automatically for each model.
   gpu_partition:
     label: "Partition"
     widget: "select"
