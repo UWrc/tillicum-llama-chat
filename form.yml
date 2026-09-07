@@ -44,9 +44,10 @@ attributes:
       # Replace these disabled placeholders with real MIG-compatible models.
       # Remove `disabled: true` and data-model-placeholder after replacing the
       # label and path; retain the partition/data-option attributes.
+      - ["OpenBMB MiniCPM (2B-fp16)", "/gpfs/models/MiniCPM5-2B-GGUF/MiniCPM5-2B-F16.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
       - ["Alibaba Qwen3.5 (2B-bf16)", "/gpfs/models/Qwen3.5-2B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
-      - ["Alibaba Qwen3.5 (4B-bf16)", "/gpfs/models/Qwen3.5-4B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
-      - ["Alibaba Qwen3.5 (9B-bf16)", "/gpfs/models/Qwen3.5-9B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
+      - ["Alibaba Qwen3.5 (4B-bf16)", "/gpfs/models/Qwen3.5-4B.gguf", {disabled: true, data-model-placeholder: true, data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
+      - ["Alibaba Qwen3.5 (9B-bf16)", "/gpfs/models/Qwen3.5-9B.gguf", {disabled: true, data-model-placeholder: true, data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
       - ["Google Gemma-4 (31B-it-UD-IQ3_XXS)", "/gpfs/models/gemma-4-31B-it-GGUF/gemma-4-31B-it-UD-IQ3_XXS.gguf", {disabled: true, data-model-placeholder: true, data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
     help: |
       Models are filtered by partition because the available GPU memory differs.
