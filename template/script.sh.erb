@@ -29,7 +29,6 @@ TEMPERATURE="<%= context.enable_advanced_args == "0" ? "0.8" : context.temperatu
 API_KEY_B64="<%= Base64.strict_encode64(context.api_key.to_s) %>"
 API_KEY="$(printf '%s' "$API_KEY_B64" | base64 -d 2>/dev/null)"
 EXTRA_ARGS="<%= context.enable_advanced_args == "0" ? "" : context.extra_llama_args %>"
-NETWORK_OFFLINE="<%= context.network_offline %>"
 STORAGE_YOLO="<%= context.storage_yolo %>"
 STORAGE_HOME_MOUNT="<%= context.storage_home_mount %>"
 MOUNT1_SOURCE="<%= context.mount1_source %>"
@@ -89,33 +88,44 @@ read -r -a EXTRA_ARGS_ARR <<< "$EXTRA_ARGS"
 
 # Apptainer arguments
 APPTAINER_ARGS=(--nv)
-if [ "$NETWORK_OFFLINE" = "1" ]; then
-    APPTAINER_ARGS+=(--network none)
-fi
+# NOTE: --network none is intentionally not used here.
+# With --network none the container gets an isolated network namespace,
+# so the host-side Python proxy can no longer reach the llama-server
+# listening on 127.0.0.1 inside the container. Network-level isolation
+# is therefore replaced by llama.cpp's --offline flag, which prevents
+# the server from making outbound requests while keeping loopback
+# connectivity for the proxy.
+# if [ "$NETWORK_OFFLINE" = "1" ]; then
+#     APPTAINER_ARGS+=(--network none)
+# fi
 
-# Home handling for non-YOLO mode
-if [ "$STORAGE_YOLO" != "1" ] && [ "$STORAGE_HOME_MOUNT" != "1" ]; then
-    APPTAINER_ARGS+=(--home /home/$USER)
+# Secure non-YOLO mode: explicitly avoid implicit /gpfs mounts
+if [ "$STORAGE_YOLO" != "1" ]; then
+    APPTAINER_ARGS+=(--no-mount /gpfs)
 fi
 
 # Apptainer bind mounts: model directory + mmproj, plus selective mounts when YOLO is off
 BIND_ARGS=()
+# Always ensure the models directory is available read-only inside the container.
+# This is a minimum mount for the app to function in secure / non-YOLO mode.
+# It is redundant in YOLO mode but harmless.
+BIND_ARGS+=(--mount type=bind,src=/gpfs/models,dst=/models,ro)
 if [ "$STORAGE_YOLO" = "1" ]; then
-    # YOLO mode: bind model dir and mmproj as before
-    BIND_ARGS+=(--bind "$(dirname "$MODEL_PATH")")
+    # YOLO mode: bind model dir and mmproj as before, read-only
+    BIND_ARGS+=(--mount type=bind,src="$(dirname "$MODEL_PATH")",dst="$(dirname "$MODEL_PATH")",ro)
     if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
-        BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+        BIND_ARGS+=(--mount type=bind,src="$(dirname "${MMPROJ_ARGS[1]}")",dst="$(dirname "${MMPROJ_ARGS[1]}")",ro)
     fi
 else
     # Selective mounts
-    # Model directory must still be accessible
-    BIND_ARGS+=(--bind "$(dirname "$MODEL_PATH")")
+    # Model directory must still be accessible, read-only
+    BIND_ARGS+=(--mount type=bind,src="$(dirname "$MODEL_PATH")",dst="$(dirname "$MODEL_PATH")",ro)
     if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
-        BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+        BIND_ARGS+=(--mount type=bind,src="$(dirname "${MMPROJ_ARGS[1]}")",dst="$(dirname "${MMPROJ_ARGS[1]}")",ro)
     fi
     # Home mount
     if [ "$STORAGE_HOME_MOUNT" = "1" ]; then
-        BIND_ARGS+=(--bind "/gpfs/home/$USER:/home/$USER")
+        BIND_ARGS+=(--mount type=bind,src="/gpfs/home/$USER",dst="/home/$USER")
     fi
     # Helper to add selective mounts
     add_mount() {
@@ -123,9 +133,9 @@ else
         [ -z "$src" ] && return
         [ -z "$dest" ] && dest="$src"
         if [ "$writable" = "1" ]; then
-            BIND_ARGS+=(--mount type=bind,source="$src",dest="$dest")
+            BIND_ARGS+=(--mount type=bind,src="$src",dst="$dest")
         else
-            BIND_ARGS+=(--mount type=bind,source="$src",dest="$dest",ro)
+            BIND_ARGS+=(--mount type=bind,src="$src",dst="$dest",ro)
         fi
     }
     add_mount "$MOUNT1_SOURCE" "$MOUNT1_DEST" "$MOUNT1_WRITABLE"
@@ -193,7 +203,17 @@ WATCHDOG_PID=$!
 
 # Wait for the proxy; when it goes away the job ends.
 # Ensure a SIGTERM (session teardown) tears the server down with us.
-on_term() { kill "$PROXY_PID" "$WATCHDOG_PID" "$LLAMA_PID" 2>/dev/null; exit 143; }
+# Kill the whole process group to ensure apptainer + llama-server children are reaped.
+on_term() {
+    echo "TERM received, shutting down..."
+    kill "$PROXY_PID" "$WATCHDOG_PID" "$LLAMA_PID" 2>/dev/null
+    # Give children a moment to exit gracefully
+    sleep 2
+    # Kill any remaining children in this process group
+    pkill -TERM -P $$ 2>/dev/null || true
+    kill -TERM 0 2>/dev/null || true
+    exit 143
+}
 trap on_term TERM
 
 wait "$PROXY_PID"

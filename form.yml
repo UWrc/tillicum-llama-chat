@@ -91,20 +91,12 @@ attributes:
     label: Extra Slurm options
     widget: "text_field"
     help: Additional arguments for the Slurm command, e.g. "sbatch --custom-options"
-  network_offline:
-    label: "Offline"
-    widget: "check_box"
-    value: "0"
-    header: |
-      **Security: Network**
-    help: |
-      If checked, the model will have no access to the internet.
   storage_yolo:
     label: "YOLO"
     widget: "check_box"
     value: "1"
     header: |
-      **Security: Storage**
+      **Security: File Access**
     help: |
       If checked, the container is run as currently configured with broad mounts. Most AI models run commands as you do and therefore have access to the same files by default.
       It is recommended to uncheck this box and selectively mount paths to limit potential damage a model may be allowed to cause.
@@ -159,7 +151,6 @@ attributes:
 
 form:
   - auto_accounts
-  - auto_queues
   - auto_qos
   - num_gpus
   - gpu_partition
@@ -171,7 +162,6 @@ form:
   - api_key
   - extra_llama_args
   - extra_slurm_args
-  - network_offline
   - storage_yolo
   - storage_home_mount
   - mount1_source
