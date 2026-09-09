@@ -7,6 +7,13 @@ UI through the OOD node proxy.
 The application currently targets the `tillicum` cluster and supports the
 `gpu-h200` and `gpu-h200-mig` partitions.
 
+## Recent changes
+
+* Proxy script path made portable: `before.sh.erb` and `script.sh.erb` now default to `template/proxy.py` instead of a hard-coded home directory path. `LLAMA_PROXY_PY` remains an override.
+* Model catalogue aligned: `Google Gemma-4 (31B-it-UD-IQ3_XXS)` enabled for `gpu-h200-mig` in `form.yml`; `Meta Muse-Glimmer` added to documentation; duplicate placeholder removed.
+* `view.html.erb` csrftoken cookie is now set once on page load; the duplicate `onclick` setter was removed.
+* Documentation updated to reflect current file paths and model list.
+
 ## Current defaults
 
 | Setting | Current value |
@@ -107,13 +114,18 @@ disabled.
 |---|---|---|---|
 | `gpu-h200` | Alibaba Qwen3.8 (27B-bf16) | `/gpfs/models/Qwen3.8-27B.gguf` | enabled |
 | `gpu-h200` | NVIDIA Nemotron-3.5-Lightning (30B-A3B-bf16) | `/gpfs/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16.gguf` | enabled |
-| `gpu-h200` | Google gemma-4 (31B-it-bf16) | `/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf` | enabled |
-| `gpu-h200-mig` | Google gemma-4 (31B-it-UD-IQ3_XXS) | `/gpfs/models/gemma-4-31B-it-GGUF/gemma-4-31B-it-UD-IQ3_XXS.gguf` | enabled |
-| `gpu-h200-mig` | Google gemma-4 (31B-it-UD-IQ3_XXS) | same as above | disabled placeholder |
+| `gpu-h200` | Google Gemma-4 (31B-it-bf16) | `/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf` | enabled |
+| `gpu-h200` | Meta Muse-Glimmer (30B-fp4) | `/gpfs/models/Muse-Glimmer-30B-GGUF/Muse-Glimmer-30B-KQuant-Dynamic-Q4_K_XL.gguf` | enabled |
+| `gpu-h200-mig` | OpenBMB MiniCPM (2B-fp16) | `/gpfs/models/MiniCPM5-2B-GGUF/MiniCPM5-2B-F16.gguf` | enabled |
+| `gpu-h200-mig` | Alibaba Qwen3.5 (2B-bf16) | `/gpfs/models/Qwen3.5-2B.gguf` | enabled |
+| `gpu-h200-mig` | Google Gemma-4 (31B-it-UD-IQ3_XXS) | `/gpfs/models/gemma-4-31B-it-GGUF/gemma-4-31B-it-UD-IQ3_XXS.gguf` | enabled |
+| `gpu-h200-mig` | Alibaba Qwen3.5 (4B-bf16) | `/gpfs/models/Qwen3.5-4B.gguf` | disabled placeholder |
+| `gpu-h200-mig` | Alibaba Qwen3.5 (9B-bf16) | `/gpfs/models/Qwen3.5-9B.gguf` | disabled placeholder |
 
-The final disabled entry currently duplicates the enabled MIG entry. It is only
-a placeholder and should be replaced with a different compatible model or
-removed.
+The `model_path` YAML default is intentionally empty. On page initialization,
+`form.js` selects the first enabled model compatible with the current
+partition. If a partition has no enabled models, it clears the selection,
+marks the required field invalid, and displays a warning.
 
 The `model_path` YAML default is intentionally empty. On page initialization,
 `form.js` selects the first enabled model compatible with the current
@@ -251,21 +263,27 @@ The container's WebUI assets are pre-compressed. The proxy preserves the
 browser's `Accept-Encoding` header and passes non-HTML gzip responses through
 unchanged. It decompresses HTML only when necessary to inject the subpath shim.
 
+Streaming HTML patching was evaluated. Full streaming decompression with
+`</head>` boundary detection across gzip/deflate chunks introduces complexity
+and edge-case failures for partial tags. The current buffered approach for HTML
+is retained for reliability; non-HTML responses remain streamed.
+
 ## Deployment
 
 A development app can be linked into the OOD development app directory. A
 production deployment is normally cloned or copied into the site's system app
 root according to local OOD administration policy.
 
-This installation currently expects the proxy source at:
+The proxy source is referenced relative to the app root:
 
 ```text
-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py
+template/proxy.py
 ```
 
-That absolute fallback appears in both `before.sh.erb` and `script.sh.erb`. If
-the app is moved, either update those paths or set `LLAMA_PROXY_PY` to a proxy
-file readable from compute nodes.
+Both `before.sh.erb` and `script.sh.erb` default to `template/proxy.py` and can be
+ overridden with the `LLAMA_PROXY_PY` environment variable. This removes the
+ previous hard-coded `/gpfs/home/npho/ondemand/dev/llama-webui/...` path and
+ makes the app portable.
 
 The manifest places the application under:
 

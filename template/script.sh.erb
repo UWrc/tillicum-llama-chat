@@ -40,7 +40,7 @@ MOUNT2_WRITABLE="<%= context.mount2_writable %>"
 MOUNT3_SOURCE="<%= context.mount3_source %>"
 MOUNT3_DEST="<%= context.mount3_dest %>"
 MOUNT3_WRITABLE="<%= context.mount3_writable %>"
-PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
+PROXY_PY="${LLAMA_PROXY_PY:-template/proxy.py}"
 
 JOB_ID="${SLURM_JOB_ID:-$$}"
 LOGDIR="${TMPDIR:-/tmp}/llama-webui-$JOB_ID"

@@ -42,7 +42,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # The proxy script must be reachable from the compute node (shared FS).
-PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
+PROXY_PY="${LLAMA_PROXY_PY:-template/proxy.py}"
 if [ ! -r "$PROXY_PY" ]; then
     echo "ERROR: Reverse proxy script not found: $PROXY_PY"
     exit 1
