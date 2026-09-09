@@ -29,6 +29,18 @@ TEMPERATURE="<%= context.enable_advanced_args == "0" ? "0.8" : context.temperatu
 API_KEY_B64="<%= Base64.strict_encode64(context.api_key.to_s) %>"
 API_KEY="$(printf '%s' "$API_KEY_B64" | base64 -d 2>/dev/null)"
 EXTRA_ARGS="<%= context.enable_advanced_args == "0" ? "" : context.extra_llama_args %>"
+NETWORK_OFFLINE="<%= context.network_offline %>"
+STORAGE_YOLO="<%= context.storage_yolo %>"
+STORAGE_HOME_MOUNT="<%= context.storage_home_mount %>"
+MOUNT1_SOURCE="<%= context.mount1_source %>"
+MOUNT1_DEST="<%= context.mount1_dest %>"
+MOUNT1_WRITABLE="<%= context.mount1_writable %>"
+MOUNT2_SOURCE="<%= context.mount2_source %>"
+MOUNT2_DEST="<%= context.mount2_dest %>"
+MOUNT2_WRITABLE="<%= context.mount2_writable %>"
+MOUNT3_SOURCE="<%= context.mount3_source %>"
+MOUNT3_DEST="<%= context.mount3_dest %>"
+MOUNT3_WRITABLE="<%= context.mount3_writable %>"
 PROXY_PY="${LLAMA_PROXY_PY:-/gpfs/home/npho/ondemand/dev/llama-webui/template/proxy.py}"
 
 JOB_ID="${SLURM_JOB_ID:-$$}"
@@ -75,11 +87,50 @@ API_ARGS=()
 EXTRA_ARGS_ARR=()
 read -r -a EXTRA_ARGS_ARR <<< "$EXTRA_ARGS"
 
-# Apptainer bind mounts: the model directory, plus the mmproj
-# directory if one is in use (it lives outside the model dir).
-BIND_ARGS=(--bind "$(dirname "$MODEL_PATH")")
-if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
-    BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+# Apptainer arguments
+APPTAINER_ARGS=(--nv)
+if [ "$NETWORK_OFFLINE" = "1" ]; then
+    APPTAINER_ARGS+=(--network none)
+fi
+
+# Home handling for non-YOLO mode
+if [ "$STORAGE_YOLO" != "1" ] && [ "$STORAGE_HOME_MOUNT" != "1" ]; then
+    APPTAINER_ARGS+=(--home /home/$USER)
+fi
+
+# Apptainer bind mounts: model directory + mmproj, plus selective mounts when YOLO is off
+BIND_ARGS=()
+if [ "$STORAGE_YOLO" = "1" ]; then
+    # YOLO mode: bind model dir and mmproj as before
+    BIND_ARGS+=(--bind "$(dirname "$MODEL_PATH")")
+    if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
+        BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+    fi
+else
+    # Selective mounts
+    # Model directory must still be accessible
+    BIND_ARGS+=(--bind "$(dirname "$MODEL_PATH")")
+    if [ ${#MMPROJ_ARGS[@]} -gt 0 ]; then
+        BIND_ARGS+=(--bind "$(dirname "${MMPROJ_ARGS[1]}")")
+    fi
+    # Home mount
+    if [ "$STORAGE_HOME_MOUNT" = "1" ]; then
+        BIND_ARGS+=(--bind "/gpfs/home/$USER:/home/$USER")
+    fi
+    # Helper to add selective mounts
+    add_mount() {
+        local src="$1" dest="$2" writable="$3"
+        [ -z "$src" ] && return
+        [ -z "$dest" ] && dest="$src"
+        if [ "$writable" = "1" ]; then
+            BIND_ARGS+=(--mount type=bind,source="$src",dest="$dest")
+        else
+            BIND_ARGS+=(--mount type=bind,source="$src",dest="$dest",ro)
+        fi
+    }
+    add_mount "$MOUNT1_SOURCE" "$MOUNT1_DEST" "$MOUNT1_WRITABLE"
+    add_mount "$MOUNT2_SOURCE" "$MOUNT2_DEST" "$MOUNT2_WRITABLE"
+    add_mount "$MOUNT3_SOURCE" "$MOUNT3_DEST" "$MOUNT3_WRITABLE"
 fi
 
 echo "========================================================"
@@ -100,7 +151,7 @@ echo "========================================================"
 
 # ── Launch the llama server in the background ───────────────────
 echo "Starting llama server in apptainer container..."
-nohup apptainer run --nv \
+nohup apptainer run "${APPTAINER_ARGS[@]}" \
     "${BIND_ARGS[@]}" \
     "$LLAMA_SIF" \
     serve \

@@ -71,6 +71,87 @@
     checkbox.addEventListener('change', updateAdvancedVisibility);
   }
 
+  function layoutMountRows() {
+    // Build a simple table-like layout for mount rows: Source | Destination | Writable?
+    var headerAdded = document.getElementById('mount-table-header');
+    var helpAdded   = document.getElementById('mount-table-help');
+    // Add header row once
+    if (!headerAdded) {
+      var src0 = findField('mount1_source');
+      if (src0) {
+        var ref = fieldWrapper(src0).parentNode;
+        var header = document.createElement('div');
+        header.id = 'mount-table-header';
+        header.className = 'row mb-1 font-weight-bold';
+        header.innerHTML = '<div class="col-sm-5">Source (Tillicum)</div><div class="col-sm-5">Destination (Container)</div><div class="col-sm-2 text-center">Writable</div>';
+        ref.insertBefore(header, fieldWrapper(src0));
+      }
+    }
+    for (var i = 1; i <= 3; i += 1) {
+      var src = findField('mount' + i + '_source');
+      var dst = findField('mount' + i + '_dest');
+      var wr = findField('mount' + i + '_writable');
+      if (!src || !dst || !wr) { continue; }
+      var wSrc = fieldWrapper(src);
+      var wDst = fieldWrapper(dst);
+      var wWr  = fieldWrapper(wr);
+      if (!wSrc || !wDst || !wWr) { continue; }
+      // Avoid re-wrapping
+      if (wSrc.parentElement && wSrc.parentElement.getAttribute('data-mount-row') === String(i)) { continue; }
+      var row = document.createElement('div');
+      row.className = 'row mb-2';
+      row.setAttribute('data-mount-row', String(i));
+      // Make wrappers behave as columns
+      wSrc.className = 'form-group col-sm-5';
+      wDst.className = 'form-group col-sm-5';
+      wWr.className  = 'form-group col-sm-2 d-flex align-items-center justify-content-center';
+      // Insert row before the first wrapper to keep order
+      var ref = wSrc.parentNode;
+      ref.insertBefore(row, wSrc);
+      row.appendChild(wSrc);
+      row.appendChild(wDst);
+      row.appendChild(wWr);
+      // Hide field labels – column headers are provided by the table header row
+      var srcLabel = wSrc.querySelector('label');
+      var dstLabel = wDst.querySelector('label');
+      if (srcLabel) srcLabel.style.display = 'none';
+      if (dstLabel) dstLabel.style.display = 'none';
+      // Writable checkbox: hide label text and vertically center the box
+      var wrLabel = wWr.querySelector('label');
+      if (wrLabel) {
+        wrLabel.className = 'mb-0';
+        // Remove label text, keep only the input
+        for (var n = wrLabel.childNodes.length - 1; n >= 0; n--) {
+          var node = wrLabel.childNodes[n];
+          if (node.nodeType === 3) {
+            node.textContent = '';
+          }
+        }
+        wWr.style.display = 'flex';
+        wWr.style.alignItems = 'center';
+        wWr.style.justifyContent = 'center';
+      }
+    }
+    // Add merged help paragraph once, after the last row
+    if (!helpAdded) {
+      var lastWr = findField('mount3_writable');
+      if (lastWr) {
+        var wLast = fieldWrapper(lastWr);
+        var help = document.createElement('div');
+        help.id = 'mount-table-help';
+        help.className = 'text-muted small mt-2';
+        help.textContent = 'Manually add up to 3 mount points. Read-only by default. Source path on Tillicum to bind into the container. Destination path inside the container. If destination is left blank, destination matches source (i.e., it will appear exactly like it does on the cluster). If "writable" is unchecked, the mount is read-only.';
+        // Insert after the row containing the last wrapper
+        var rowParent = wLast.parentElement;
+        if (rowParent) {
+          rowParent.parentNode.insertBefore(help, rowParent.nextSibling);
+        } else if (wLast.parentNode) {
+          wLast.parentNode.parentNode.insertBefore(help, wLast.parentNode.nextSibling);
+        }
+      }
+    }
+  }
+
   function modelNoteBox(modelField) {
     var box = document.getElementById(MODEL_NOTE_ID);
     if (box) { return box; }
@@ -203,6 +284,7 @@
     bind();
     bindAdvanced();
     bindModelOptions();
+    layoutMountRows();
 
     if (costReady && advancedReady && modelsReady) {
       clearInterval(timer);

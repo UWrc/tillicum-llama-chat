@@ -33,17 +33,10 @@ attributes:
     required: true
     value: ""
     options:
-      # Full-H200 models. The data-option directive provides native OOD
-      # filtering; data-partition is used by form.js as a fallback when the
-      # site's bc_dynamic_js feature is disabled.
       - ["Alibaba Qwen3.8 (27B-bf16)", "/gpfs/models/Qwen3.8-27B.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
       - ["NVIDIA Nemotron-3.5-Lightning (30B-A3B-bf16)", "/gpfs/models/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
       - ["Google Gemma-4 (31B-it-bf16)", "/gpfs/models/gemma-4-31B-it-GGUF/BF16/gemma-4-31B-it-BF16-00001-of-00002.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
       - ["Meta Muse-Glimmer (30B-fp4)", "/gpfs/models/Muse-Glimmer-30B-GGUF/Muse-Glimmer-30B-KQuant-Dynamic-Q4_K_XL.gguf", {data-partition: "gpu-h200", data-option-for-gpu-partition-gpu-h200-mig: false}]
-
-      # Replace these disabled placeholders with real MIG-compatible models.
-      # Remove `disabled: true` and data-model-placeholder after replacing the
-      # label and path; retain the partition/data-option attributes.
       - ["OpenBMB MiniCPM (2B-fp16)", "/gpfs/models/MiniCPM5-2B-GGUF/MiniCPM5-2B-F16.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
       - ["Alibaba Qwen3.5 (2B-bf16)", "/gpfs/models/Qwen3.5-2B.gguf", {data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
       - ["Alibaba Qwen3.5 (4B-bf16)", "/gpfs/models/Qwen3.5-4B.gguf", {disabled: true, data-model-placeholder: true, data-partition: "gpu-h200-mig", data-option-for-gpu-partition-gpu-h200: false}]
@@ -95,9 +88,74 @@ attributes:
         hide-extra-llama-args-when-un-checked: true
         hide-extra-slurm-args-when-un-checked: true
   extra_slurm_args:
-    label: Extra Slurm command-line options
+    label: Extra Slurm options
     widget: "text_field"
     help: Additional arguments for the Slurm command, e.g. "sbatch --custom-options"
+  network_offline:
+    label: "Offline"
+    widget: "check_box"
+    value: "0"
+    header: |
+      **Security: Network**
+    help: |
+      If checked, the model will have no access to the internet.
+  storage_yolo:
+    label: "YOLO"
+    widget: "check_box"
+    value: "1"
+    header: |
+      **Security: Storage**
+    help: |
+      If checked, the container is run as currently configured with broad mounts. Most AI models run commands as you do and therefore have access to the same files by default.
+      It is recommended to uncheck this box and selectively mount paths to limit potential damage a model may be allowed to cause.
+    html_options:
+      data:
+        hide-storage-home-mount-when-checked: true
+        hide-mount1-source-when-checked: true
+        hide-mount1-dest-when-checked: true
+        hide-mount1-writable-when-checked: true
+        hide-mount2-source-when-checked: true
+        hide-mount2-dest-when-checked: true
+        hide-mount2-writable-when-checked: true
+        hide-mount3-source-when-checked: true
+        hide-mount3-dest-when-checked: true
+        hide-mount3-writable-when-checked: true
+  storage_home_mount:
+    label: "Mount home directory?"
+    widget: "check_box"
+    value: "0"
+    help: |
+      When checked, your Tillicum home directory (i.e., `/gpfs/home/$USER`) is bind-mounted into the container as `/home/$USER`. If unchecked, your ephemeral home directory is empty and internal to the container at `/home/$USER`.
+  mount1_source:
+    label: "Source (Tillicum)"
+    widget: "text_field"
+  mount1_dest:
+    label: "Destination (Container)"
+    widget: "text_field"
+  mount1_writable:
+    label: "Writable?"
+    widget: "check_box"
+    value: "0"
+  mount2_source:
+    label: ""
+    widget: "text_field"
+  mount2_dest:
+    label: ""
+    widget: "text_field"
+  mount2_writable:
+    label: ""
+    widget: "check_box"
+    value: "0"
+  mount3_source:
+    label: ""
+    widget: "text_field"
+  mount3_dest:
+    label: ""
+    widget: "text_field"
+  mount3_writable:
+    label: ""
+    widget: "check_box"
+    value: "0"
 
 form:
   - auto_accounts
@@ -113,3 +171,15 @@ form:
   - api_key
   - extra_llama_args
   - extra_slurm_args
+  - network_offline
+  - storage_yolo
+  - storage_home_mount
+  - mount1_source
+  - mount1_dest
+  - mount1_writable
+  - mount2_source
+  - mount2_dest
+  - mount2_writable
+  - mount3_source
+  - mount3_dest
+  - mount3_writable
